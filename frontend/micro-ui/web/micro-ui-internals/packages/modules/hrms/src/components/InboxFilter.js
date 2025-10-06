@@ -57,6 +57,7 @@ const Filter = ({ searchParams, onFilterChange, onSearch, removeParam, ...props 
         const zones = data?.["egov-location"]?.TenantBoundary?.[0]?.boundary?.children || [];
         return zones.map((zone) => ({
           code: zone.code,
+          name: zone.name || zone.code,
           i18text: zone.name || zone.code,
         }));
       },
@@ -125,10 +126,18 @@ const Filter = ({ searchParams, onFilterChange, onSearch, removeParam, ...props 
     }
   }, [isActive]);
 
-  // 🔹 update searchParams when zone selected
+  // Update zone parameter - try multiple possible API parameter names
   useEffect(() => {
-    if (zones) {
-      setSearchParams({ ..._searchParams, zones: zones.code });
+    if (zones?.code) {
+      setSearchParams({
+        ..._searchParams,
+        zone: zones.code,
+        // Also store the zone for client-side filtering as fallback
+        _clientZone: zones.code,
+      });
+    } else {
+      const { zone, _clientZone, ...rest } = _searchParams;
+      setSearchParams(rest);
     }
   }, [zones]);
 
@@ -195,16 +204,22 @@ const Filter = ({ searchParams, onFilterChange, onSearch, removeParam, ...props 
             )}
           </div>
           <div>
-            <div>
+            {/* <div>
               <div className="filter-label">{t("HR_ULB_LABEL")}</div>
               <Dropdown
-                option={[...getCityThatUserhasAccess(tenantIds)?.sort((x, y) => x?.name?.localeCompare(y?.name)).map(city => { return { ...city, i18text: Digit.Utils.locale.getCityLocale(city.code) } })]}
+                option={[
+                  ...getCityThatUserhasAccess(tenantIds)
+                    ?.sort((x, y) => x?.name?.localeCompare(y?.name))
+                    .map((city) => {
+                      return { ...city, i18text: Digit.Utils.locale.getCityLocale(city.code) };
+                    }),
+                ]}
                 selected={tenantId}
                 select={settenantId}
                 optionKey={"i18text"}
                 t={t}
               />
-            </div>
+            </div> */}
             <div>
               <div className="filter-label">{t("HR_COMMON_TABLE_COL_DEPT")}</div>
               <Dropdown
@@ -219,7 +234,7 @@ const Filter = ({ searchParams, onFilterChange, onSearch, removeParam, ...props 
             {/* 🔹 Fixed Zone filter */}
             <div>
               <div className="filter-label">{t("HR_ZONE_LABEL")}</div>
-              <Dropdown option={zoneMdmsData} selected={zones} select={setZones} optionKey={"i18text"} t={t} />
+              <Dropdown option={zoneMdmsData || []} selected={zones} select={setZones} optionKey={"i18text"} t={t} />
             </div>
 
             <div>

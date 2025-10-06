@@ -161,7 +161,7 @@ const TopBar = ({
                   style={mobileView ? { right: 0 } : {}}
                   optionCardStyles={{ overflow: "revert" }}
                   customSelector={
-                    profilePic == null ? (
+                    !profilePic ? ( // Changed from profilePic == null
                       <TextToImg name={userDetails?.info?.name || userDetails?.info?.userInfo?.name || "Employee"} />
                     ) : (
                       <img src={profilePic} style={{ height: "48px", width: "48px", borderRadius: "50%" }} />

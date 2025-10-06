@@ -138,6 +138,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
             customProps: {},
             component: (props, customProps) => (
               <Dropdown
+                disable
                 option={cities}
                 defaultProps={{ name: "i18nKey", value: "code" }}
                 className="login-city-dd"
