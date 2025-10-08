@@ -21,6 +21,7 @@ class UserSettings extends Component {
     tempTenantSelected: getTenantId(),
     open: false,
     roleSelected: "",
+    
   };
   style = {
     baseStyle: {
@@ -89,6 +90,7 @@ class UserSettings extends Component {
     }
   };
 
+  
   handleClose = () => {
     this.setState({ ...this.state, open: false });
   };
@@ -137,6 +139,19 @@ class UserSettings extends Component {
     const { style } = this;
     const { onIconClick, userInfo, handleItemClick, hasLocalisation, languages, fetchLocalizationLabel, isUserSetting } = this.props;
 
+    // This is TTL ===========
+    const { sessionTTL } = this.props;
+    const safeTTL = sessionTTL || 0;
+
+    // convert into mm:ss
+    const minutes = Math.floor(safeTTL / 60);
+    const seconds = safeTTL % 60;
+
+    // pad numbers (e.g., 09:04)
+    const pad = (num) => String(num).padStart(2, "0");
+    const formattedTTL = `${pad(minutes)}:${pad(seconds)}`;
+
+
     /**
      * Get All tenant id's from (user info -> roles) to populate dropdown
      */
@@ -182,29 +197,86 @@ class UserSettings extends Component {
           />
         )} */}
         {process.env.REACT_APP_NAME === "Employee" && isUserSetting && (
-          <DropDown
-            onChange={(event, index, value) => {
-              this.setState({ roleSelected: value });
-            }}
-            listStyle={style.listStyle}
-            style={style.roleDropDownStyle}
-            labelStyle={style.label}
-            dropDownData={userRoleList}
-            value={this.state.roleSelected} 
-            underlineStyle={{ borderBottom: "none" }}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: "15px", marginRight: "20px" }}>
+            
+            {/* Role Dropdown */}
+            <DropDown
+              onChange={(event, index, value) => {
+                this.setState({ roleSelected: value });
+              }}
+              listStyle={style.listStyle}
+              style={style.roleDropDownStyle}
+              labelStyle={style.label}
+              dropDownData={userRoleList}
+              value={this.state.roleSelected}
+              underlineStyle={{ borderBottom: "none" }}
+            />
+
+            {/* Language Dropdown */}
+            {hasLocalisation && (
+              <DropDown
+                onChange={this.onLanguageChange}
+                listStyle={style.listStyle}
+                style={style.baseStyle}
+                labelStyle={style.label}
+                dropDownData={languages}
+                value={languageSelected}
+                underlineStyle={{ borderBottom: "none" }}
+              />
+            )}
+
+            {/* TTL Timer */}
+            {sessionTTL !== null && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "60px",
+                paddingRight: "20px",
+                fontFamily: "'Inter', 'Roboto', sans-serif",
+                fontWeight: "600",
+                fontSize: "14px",
+                color: "#475569",
+                letterSpacing: "0.3px",
+              }}
+            >
+              <span style={{ marginRight: "10px", opacity: 0.8 }}>Session Expires In:</span>
+              <span
+                style={{
+                  backgroundColor:
+                    safeTTL < 60
+                      ? "rgba(255, 77, 79, 0.15)" // light red
+                      : safeTTL < 180
+                      ? "rgba(234, 179, 8, 0.15)" // light yellow
+                      : "rgba(22, 163, 74, 0.15)", // light green
+                  color:
+                    safeTTL < 60
+                      ? "#ff4d4f" // red text
+                      : safeTTL < 180
+                      ? "#b45309" // amber text
+                      : "#15803d", // green text
+                  fontSize: "15px",
+                  fontWeight: "700",
+                  padding: "5px 12px",
+                  borderRadius: "6px",
+                  transition: "all 0.4s ease",
+                  minWidth: "75px",
+                  textAlign: "center",
+                  display: "inline-block",
+                }}
+              >
+                {formattedTTL}
+              </span>
+            </div>
+          )}
+
+          {/* End of TTL Timer */}
+
+
+          </div>
         )}
-        {hasLocalisation && (
-          <DropDown
-            onChange={this.onLanguageChange}
-            listStyle={style.listStyle}
-            style={style.baseStyle}
-            labelStyle={style.label}
-            dropDownData={languages}
-            value={languageSelected}
-            underlineStyle={{ borderBottom: "none" }}
-          />
-        )}
+
 
         {/* 
         <div>
@@ -255,12 +327,13 @@ class UserSettings extends Component {
   }
 }
 
-const mapStateToProps = ({ app,common }) => {
-  const {locale}=app;
+const mapStateToProps = ({ app, common }) => {
+  const { locale, sessionTTL } = app;
   const { stateInfoById } = common;
   let languages = get(stateInfoById, "0.languages", []);
-  return { languages ,locale};
+  return { languages, locale, sessionTTL };
 };
+
 
 const mapDispatchToProps = (dispatch) => {
   return {

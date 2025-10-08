@@ -1,15 +1,63 @@
 import React, { Component } from "react";
 import { getTenantId, getAccessToken } from "egov-ui-kit/utils/localStorageUtils";
-
+import { setSessionTTL } from "egov-ui-kit/redux/app/actions";
+import { connect } from "react-redux";
 class EGFFinance extends Component {
   constructor(props) {
     super(props);
+    this.state = {
+      ttl: null,
+      warningShown: false
+    };
     this.onFrameLoad = this.onFrameLoad.bind(this);
     this.resetIframe = this.resetIframe.bind(this);
+    this.fetchTTL = this.fetchTTL.bind(this);
   }
   onFrameLoad() {
     document.getElementById("erp_iframe").style.display = "block";
+    this.fetchTTL();
   }
+
+   startCountdown(ttlSeconds) {
+    clearInterval(this.countdownInterval);
+    this.countdownInterval = setInterval(() => {
+      ttlSeconds -= 1;
+      if (ttlSeconds <= 0) {
+        clearInterval(this.countdownInterval);
+        ttlSeconds = 0;
+      }
+      this.props.setSessionTTL(ttlSeconds);
+    }, 1000);
+  }
+
+async fetchTTL() {
+  try {
+    const tenantIdFull = getTenantId(); 
+    const tenantParts = tenantIdFull.split('.');
+    const cityCode = tenantParts.length > 1 ? tenantParts[1] : undefined;  // e.g. "pg.city"
+    const baseProxy = process.env.REACT_APP_BASE_PROXY; 
+    const parsedURL = new URL(baseProxy);
+    const domain = parsedURL.hostname;
+    const protocol = parsedURL.protocol; 
+
+    // Construct URL dynamically based on tenant and environment
+    const TtlUrl = `${protocol}//${cityCode}-${domain}/services/EGF/session/ttl`; 
+    const response = await fetch(TtlUrl, { credentials: "include" });
+    if (!response.ok) {
+      console.warn("⚠️ TTL API responded with status:", response.status);
+      return;
+    }
+    const data = await response.json();
+    if (data && typeof data.ttl === "number") {
+      this.startCountdown(data.ttl);
+    } else {
+      console.warn("⚠️ Unexpected TTL response format:", data);
+    }
+  } catch (error) {
+    console.warn("⚠️ Failed to fetch TTL:", error.message);
+  }
+}
+
 
   render() {
     let auth_token = getAccessToken(),
@@ -74,4 +122,4 @@ class EGFFinance extends Component {
   }
 }
 
-export default EGFFinance;
+export default connect(null, { setSessionTTL })(EGFFinance);
