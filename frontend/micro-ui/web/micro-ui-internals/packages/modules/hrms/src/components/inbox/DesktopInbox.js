@@ -168,7 +168,7 @@ const DesktopInbox = ({ tableConfig, filterComponent, ...props }) => {
         disableSort={props.disableSort}
         onPageSizeChange={props.onPageSizeChange}
         sortParams={props.sortParams}
-        totalRecords={props.length}
+        totalRecords={props.totalRecords}
       />
     );
   }
