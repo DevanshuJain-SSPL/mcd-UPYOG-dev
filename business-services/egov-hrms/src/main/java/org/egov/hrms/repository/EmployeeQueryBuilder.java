@@ -71,6 +71,24 @@ public class EmployeeQueryBuilder {
 			builder.append(" and lower(employee.code) IN (").append(createQuery(codes)).append(")");
 			addToPreparedStatement(preparedStmtList, codes);
 		}
+		
+		if (!CollectionUtils.isEmpty(criteria.getZone())) {
+		    List<String> zoneList = criteria.getZone().stream()
+		            .map(String::trim)
+		            .map(String::toUpperCase)
+		            .collect(Collectors.toList());
+		    
+		    // If HQ present → skip filtering (fetch all employees)
+		    if (!zoneList.contains("HQ")) {
+		        builder.append(" AND jurisdiction.zone IN (")
+		               .append(createQuery(zoneList))
+		               .append(")");
+		        preparedStmtList.addAll(zoneList);
+		    } else {
+		        // HQ means all employees → no zone filter
+		    }
+		}
+
 		if(!CollectionUtils.isEmpty(criteria.getIds())){
 			builder.append(" and employee.id IN (").append(createQuery(criteria.getIds())).append(")");
 			addToPreparedStatement(preparedStmtList, criteria.getIds());
