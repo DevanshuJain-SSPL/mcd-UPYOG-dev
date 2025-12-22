@@ -63,6 +63,9 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
     @Value("${citizen.login.password.otp.fixed.enabled}")
     private boolean fixedOTPEnabled;
+    
+    @Value("${password.encryption.enabled}")
+    private boolean passwordEncryptionEnabled;
 
     @Autowired
     private HttpServletRequest request;
@@ -75,8 +78,29 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
     @Override
     public Authentication authenticate(Authentication authentication) {
         String userName = authentication.getName();
-        String encryptedPassword = authentication.getCredentials().toString();
-        String password = passwordCryptoUtil.decrypt(encryptedPassword);
+//        String encryptedPassword = authentication.getCredentials().toString();
+//        String password = passwordCryptoUtil.decrypt(encryptedPassword);
+        
+        String credential = authentication.getCredentials().toString();
+        String password;
+
+        if (passwordEncryptionEnabled) {
+            // Encryption is REQUIRED
+            if (!isCryptoJsEncrypted(credential)) {
+                log.warn("Encrypted password expected but plain password received for user {}", userName);
+                throw new OAuth2Exception("Invalid login credentials");
+            }
+            password = passwordCryptoUtil.decrypt(credential);
+        } else {
+
+            // Plain password is REQUIRED
+            if (isCryptoJsEncrypted(credential)) {
+                log.warn("Plain password expected but encrypted password received for user {}", userName);
+                throw new OAuth2Exception("Invalid login credentials");
+            }
+            password = credential;
+        }
+        
 
         final LinkedHashMap<String, String> details = (LinkedHashMap<String, String>) authentication.getDetails();
 
@@ -268,5 +292,10 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
         return updatedUser;
     }
+    
+    private boolean isCryptoJsEncrypted(String value) {
+        return value != null && value.startsWith("U2FsdGVkX1");
+    }
+
 
 }
