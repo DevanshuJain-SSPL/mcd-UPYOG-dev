@@ -170,9 +170,9 @@ const Jurisdictions = ({ t, config, onSelect, userType, formData }) => {
           handleRemoveUnit={handleRemoveUnit}
         />
       ))}
-      <label onClick={handleAddUnit} className="link-label" style={{ width: "12rem" }}>
+      {/* <label onClick={handleAddUnit} className="link-label" style={{ width: "12rem" }}>
         {t("HR_ADD_JURISDICTION")}
-      </label>
+      </label> */}
     </div>
   );
 };
