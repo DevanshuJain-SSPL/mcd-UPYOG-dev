@@ -6,34 +6,118 @@ function UploadDrawer({ setProfilePic, closeDrawer, userType, removeProfilePic ,
   const [uploadedFile, setUploadedFile] = useState(null);
   const [file, setFile] = useState("");
   const [error, setError] = useState(null);
+  const [fileChecksum, setFileChecksum] = useState(null);
   const { t } = useTranslation();
-  const selectfile = (e) => setFile(e.target.files[0]);
-  const removeimg = () => {removeProfilePic(); closeDrawer()};
+
+  const selectfile = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
+
+  const removeimg = () => {
+    removeProfilePic();
+    closeDrawer();
+  };
+
   const onOverlayBodyClick = () => closeDrawer();
+
+  // 🔐 SHA-256 checksum
+  const calculateChecksum = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          const arrayBuffer = event.target.result;
+          const hashBuffer = await crypto.subtle.digest("SHA-256", arrayBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+          resolve(hashHex);
+        } catch (err) {
+          reject(err);
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    });
+  };
+
+  // ✅ Secure filename validation (underscore allowed)
+  const isValidFile = (file) => {
+    const allowedExtensions = [".jpg", ".jpeg", ".png"];
+    const fileName = file.name.toLowerCase();
+
+    if (!fileName || fileName.trim() === "" || fileName === "null") return false;
+
+    // Extension check
+    const isValidExtension = allowedExtensions.some((ext) => fileName.endsWith(ext));
+
+    // Security checks
+    const hasDoubleExtension = fileName.split(".").length > 2;
+    const hasDoubleDot = fileName.includes("..");
+    const hasNullByte = fileName.includes("%00");
+    const hasMetaChars = /[\x00-\x1F\x7F]/.test(fileName);
+
+    /**
+     * Allowed characters:
+     * a-z 0-9 _ - . space ( )
+     */
+    const hasSpecialChars = /[^a-z0-9_\-\. ()]/.test(fileName);
+
+    return (
+      isValidExtension &&
+      !hasDoubleExtension &&
+      !hasDoubleDot &&
+      !hasNullByte &&
+      !hasMetaChars &&
+      !hasSpecialChars
+    );
+  };
 
   useEffect(() => {
     (async () => {
+      if (!file) return;
+
       setError(null);
-      if (file) {
-        if (file.size >= 1000000) {
-          showToast("error", t("CORE_COMMON_PROFILE_MAXIMUM_UPLOAD_SIZE_EXCEEDED"))
-          setError(t("CORE_COMMON_PROFILE_MAXIMUM_UPLOAD_SIZE_EXCEEDED"));
+      setFileChecksum(null);
+
+      // Size validation
+      if (file.size >= 1000000) {
+        showToast("error", t("CORE_COMMON_PROFILE_MAXIMUM_UPLOAD_SIZE_EXCEEDED"));
+        setError(t("CORE_COMMON_PROFILE_MAXIMUM_UPLOAD_SIZE_EXCEEDED"));
+        return;
+      }
+
+      // Filename validation
+      if (!isValidFile(file)) {
+        showToast("error", t("CORE_COMMON_PROFILE_INVALID_FILE_EXTENSION"));
+        setError(t("CORE_COMMON_PROFILE_INVALID_FILE_EXTENSION"));
+        return;
+      }
+
+      try {
+        const checksum = await calculateChecksum(file);
+        setFileChecksum(checksum);
+
+        const response = await Digit.UploadServices.Filestorage(
+          `${userType}-profile`,
+          file,
+          Digit.ULBService.getStateId(),
+          checksum
+        );
+
+        if (response?.data?.files?.length > 0) {
+          const fileStoreId = response.data.files[0].fileStoreId;
+          setUploadedFile(fileStoreId);
+          setProfilePic(fileStoreId);
+          closeDrawer();
         } else {
-          try {
-            const response = await Digit.UploadServices.Filestorage(`${userType}-profile`, file, Digit.ULBService.getStateId());
-            if (response?.data?.files?.length > 0) {
-              const fileStoreId = response?.data?.files[0]?.fileStoreId;
-              setUploadedFile(fileStoreId);
-              setProfilePic(fileStoreId);
-            } else {
-              showToast("error", t("CORE_COMMON_PROFILE_FILE_UPLOAD_ERROR"))
-              setError(t("CORE_COMMON_PROFILE_FILE_UPLOAD_ERROR"));
-            }
-          } catch (err) {
-            showToast("error",t("CORE_COMMON_PROFILE_INVALID_FILE_INPUT"))
-            // setError(t("PT_FILE_UPLOAD_ERROR"));
-          }
+          showToast("error", t("CORE_COMMON_PROFILE_FILE_UPLOAD_ERROR"));
+          setError(t("CORE_COMMON_PROFILE_FILE_UPLOAD_ERROR"));
         }
+      } catch (err) {
+        console.error("Upload error:", err);
+        showToast("error", t("CORE_COMMON_PROFILE_INVALID_FILE_INPUT"));
       }
     })();
   }, [file]);
