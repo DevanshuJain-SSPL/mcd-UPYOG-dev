@@ -4,6 +4,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import lombok.extern.slf4j.Slf4j;
+
 import javax.imageio.ImageIO;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -19,7 +21,7 @@ import java.io.OutputStream;
 
 import java.util.Random;
 
-
+@Slf4j
 @RestController
 @RequestMapping("/api")
 public class CaptchaController {
@@ -55,23 +57,29 @@ public class CaptchaController {
         }
         return sb.toString();
     }
-
+    
     private BufferedImage createCaptchaImage(String text) {
-        int width = 150;
+    	log.info("Headless mode: " + java.awt.GraphicsEnvironment.isHeadless());
+        int width = 160;
         int height = 50;
 
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        BufferedImage image =
+                new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+
         Graphics2D g = image.createGraphics();
 
         g.setColor(Color.WHITE);
         g.fillRect(0, 0, width, height);
 
-        g.setFont(new Font("Arial", Font.BOLD, 28));
+        // Use logical font (safe on servers)
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 30));
         g.setColor(Color.BLACK);
 
         g.drawString(text, 20, 35);
 
         g.dispose();
+
         return image;
     }
+
 }
