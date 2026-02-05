@@ -1,4 +1,14 @@
-import { BackButton, Dropdown, FormComposer, Loader, Toast, TextInput, RefreshIcon } from "@nudmcdgnpm/digit-ui-react-components";
+import {
+  BackButton,
+  Dropdown,
+  FormComposer,
+  Loader,
+  Toast,
+  TextInput,
+  RefreshIcon,
+  Close,
+  ViewsIcon,
+} from "@nudmcdgnpm/digit-ui-react-components";
 import PropTypes from "prop-types";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useHistory } from "react-router-dom";
@@ -34,6 +44,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
   const [captchaText, setCaptchaText] = useState("");
   const [captchaValue, setCaptchaValue] = useState("");
   const [captchaId, setCaptchaId] = useState(""); // ✅ NEW
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -49,7 +60,8 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
       if (!isMountedRef.current) return;
 
       setCaptchaText(response?.captcha || "");
-      setCaptchaId(response?.captchaId || "");
+      const encryptedId = response?.captchaId ? encryptAES(response.captchaId) : "";
+      setCaptchaId(encryptedId);
       setCaptchaValue("");
     } catch (err) {
       console.error("Captcha fetch failed", err);
@@ -102,14 +114,15 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
     setDisable(true);
 
     const encryptedPassword = encryptAES(data.password);
+    const encryptedCaptcha = encryptAES(data.captcha);
 
     const requestData = {
       ...data,
       password: encryptedPassword,
       userType: "EMPLOYEE",
       tenantId: data.city.code,
-      captcha: captchaValue,
-      captchaId: captchaId,
+      captcha: encryptedCaptcha,
+      captchaId: captchaId, // ✅ NEW
     };
 
     delete requestData.city;
@@ -179,68 +192,139 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
           },
           isMandatory: true,
         },
+        // {
+        //   label: t(password.label),
+        //   type: password.type,
+        //   populators: { name: password.name },
+        //   isMandatory: true,
+        // },
+
         {
           label: t(password.label),
-          type: password.type,
-          populators: { name: password.name },
+          type: "custom",
           isMandatory: true,
+          populators: {
+            name: password.name,
+            component: (props) => (
+              <div style={{ width: "100%", marginBottom: "12px", position: "relative" }}>
+                <input
+                  type={showPassword ? "text" : password.type}
+                  value={props.value}
+                  name={password.name}
+                  onChange={(e) => props.onChange(e.target.value)}
+                  placeholder={t(password.label)}
+                  className="w-full"
+                  style={{
+                    width: "100%",
+                    height: "40px",
+                    padding: "8px 40px 8px 12px",
+                    border: "1px solid black",
+                    backgroundColor: "#eef2ff",
+                    fontSize: "14px",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <span
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    cursor: "pointer",
+                    fontSize: "18px",
+                    color: "#444",
+                    background: "transparent",
+                    padding: "0",
+                    userSelect: "none",
+                  }}
+                >
+                  {showPassword ? <Close /> : <ViewsIcon />}
+                </span>
+              </div>
+            ),
+          },
         },
         {
           type: "custom",
           populators: {
             name: "captcha",
-            component: ({ value, onChange }) => (
-              <div style={{ marginTop: "12px" }}>
-                <div style={{ display: "flex", marginBottom: "8px" }}>
+            component: ({ value, onChange }) => {
+              const blockEvent = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+              };
+
+              const blockKeyCopy = (e) => {
+                if ((e.ctrlKey || e.metaKey) && ["c", "x", "v", "a"].includes(e.key.toLowerCase())) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }
+              };
+
+              return (
+                <div style={{ marginTop: "12px" }}>
                   <div
                     style={{
-                      height: "45px",
-                      minWidth: "120px",
-                      background: "#f2f2f2",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
                       display: "flex",
+                      marginBottom: "8px",
                       alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "20px",
-                      fontWeight: "700",
-                      letterSpacing: "4px",
                     }}
                   >
-                    {captchaText}
+                    <div
+                      onCopy={blockEvent}
+                      onCut={blockEvent}
+                      onPaste={blockEvent}
+                      onContextMenu={blockEvent}
+                      onMouseDown={blockEvent}
+                      onDragStart={blockEvent}
+                      onSelectStart={blockEvent}
+                      onKeyDown={blockKeyCopy}
+                      tabIndex={0}
+                      style={{
+                        height: "45px",
+                        minWidth: "120px",
+                        background: "#f2f2f2",
+                        border: "1px solid #ccc",
+                        borderRadius: "4px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "20px",
+                        fontWeight: "700",
+                        letterSpacing: "4px",
+                        cursor: "default",
+                      }}
+                    >
+                      {captchaText}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={fetchCaptcha}
+                      title="Refresh Captcha"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        marginLeft: "12px",
+                        outline: "none",
+                      }}
+                    >
+                      <RefreshIcon />
+                    </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={fetchCaptcha}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      marginLeft: "12px",
-                      outline: "none",
+                  <TextInput
+                    placeholder="Enter Captcha"
+                    value={value || ""}
+                    onChange={(e) => {
+                      setCaptchaValue(e.target.value);
+                      onChange(e.target.value);
                     }}
-                    title="Refresh Captcha"
-                  >
-                    <RefreshIcon />
-                  </button>
+                  />
                 </div>
-
-                <TextInput
-                  placeholder="Enter Captcha"
-                  value={value || ""}
-                  onChange={(e) => {
-                    setCaptchaValue(e.target.value);
-                    onChange(e.target.value);
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                  }}
-                />
-              </div>
-            ),
+              );
+            },
           },
         },
         {
@@ -316,7 +400,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
               window.open("https://mcdonline.nic.in/", "_blank").focus();
             }}
           >
-            Copyright © 2025 Municipal Corporation of Delhi
+            Copyright ©️ 2025 Municipal Corporation of Delhi
           </span>
           <span className="upyog-copyright-footer" style={{ margin: "0 10px", fontSize: "12px" }}>
             |
