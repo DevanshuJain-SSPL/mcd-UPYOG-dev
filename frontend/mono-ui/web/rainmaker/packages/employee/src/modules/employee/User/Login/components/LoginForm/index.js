@@ -1,15 +1,47 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, TextField, Image } from "components";
-import { Button} from "egov-ui-framework/ui-atoms";
+import { Button } from "egov-ui-framework/ui-atoms";
 import { CityPicker } from "modules/common";
 import Label from "egov-ui-kit/utils/translationNode";
 import logo from "egov-ui-kit/assets/images/logo_black.png";
 import "./index.css";
 
+import RefreshIcon from "material-ui/svg-icons/navigation/refresh";
+import { fetchCaptcha } from "ui-utils/api";
+
 const LoginForm = ({ handleFieldChange, form, onForgotPasswdCLick, logoUrl }) => {
   const fields = form.fields || {};
   const submit = form.submit;
+  const [captchaImage, setCaptchaImage] = useState("");
+  const [captchaId, setCaptchaId] = useState("");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadCaptcha();
+  }, []);
+
+  const loadCaptcha = async () => {
+    setIsRefreshing(true);
+    try {
+      const data = await fetchCaptcha();
+
+      const decoded = data.captcha;   // 👈 decode base64
+
+      setCaptchaImage(decoded);             // now this is TEXT
+      setCaptchaId(data.captchaId);
+
+      handleFieldChange("captchaId", data.captchaId);
+
+      // Keep spinning for a bit for visual feedback if it was too fast
+      setTimeout(() => setIsRefreshing(false), 500);
+
+    } catch (err) {
+      console.error("Error fetching captcha:", err);
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <Card
       className="user-screens-card col-lg-offset-4 col-lg-4 col-md-offset-4 col-md-4 col-sm-offset-4 col-sm-4"
@@ -40,8 +72,35 @@ const LoginForm = ({ handleFieldChange, form, onForgotPasswdCLick, logoUrl }) =>
           </div>
           <Label style={{ marginBottom: "12px" }} className="text-center" bold={true} dark={true} fontSize={16} label="CORE_COMMON_LOGIN" />
           <TextField onChange={(e, value) => handleFieldChange("username", value)} {...fields.username} />
-          <TextField onChange={(e, value) => handleFieldChange("password", value)} {...fields.password}  />
+          <TextField onChange={(e, value) => handleFieldChange("password", value)} {...fields.password} />
           <CityPicker onChange={handleFieldChange} fieldKey="city" field={fields.city} />
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "10px" }}>
+            <div style={{ flex: 1 }}>
+              <TextField
+                {...fields.captcha}
+                onChange={(e, v) => handleFieldChange("captcha", v)}
+              />
+            </div>
+            <div style={{
+              padding: "10px 16px",
+              background: "#f5f5f5",
+              borderRadius: "6px",
+              fontSize: "20px",
+              fontWeight: "bold",
+              letterSpacing: "3px",
+              userSelect: "none",
+              MozUserSelect: "none",
+              WebkitUserSelect: "none",
+              msUserSelect: "none"
+            }}>
+              {captchaImage}
+            </div>
+
+            <Button variant="outlined" style={{ minWidth: "50px" }} onClick={loadCaptcha}>
+              <RefreshIcon className={isRefreshing ? "captcha-refresh-spin" : ""} color="#fe7a51" />
+            </Button>
+          </div>
+
           <Link to="/forgot-password">
             <div style={{ float: "right" }}>
               <Label
@@ -54,15 +113,15 @@ const LoginForm = ({ handleFieldChange, form, onForgotPasswdCLick, logoUrl }) =>
             </div>
           </Link>
           <Button
-                {...submit}
+            {...submit}
             style={{
-              height: "48px",     
-              width:"100%"        
+              height: "48px",
+              width: "100%"
             }}
             variant={"contained"}
             color={"primary"}
           >
-            <Label buttonLabel={true}   labelStyle={{fontWeight:500 }}  label="CORE_COMMON_CONTINUE" />
+            <Label buttonLabel={true} labelStyle={{ fontWeight: 500 }} label="CORE_COMMON_CONTINUE" />
           </Button>
           {/* <Button {...submit} fullWidth={true} primary={true} /> */}
         </div>

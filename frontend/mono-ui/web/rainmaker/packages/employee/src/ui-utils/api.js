@@ -77,3 +77,32 @@ export const uploadFile = async (endPoint, module, file, ulbLevel) => {
     throw new Error(error);
   }
 };
+
+export const fetchCaptcha = async () => {
+  const captchaInstance = axios.create({
+    baseURL: window.location.origin,
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  try {
+    const response = await captchaInstance.get("/user/api/captcha");
+
+    const responseStatus = parseInt(response.status, 10);
+
+    if (responseStatus === 200 || responseStatus === 201) {
+      return response.data;
+    }
+
+  } catch (error) {
+    const errDesc =
+      (error &&
+        error.response &&
+        error.response.data &&
+        error.response.data.error_description) ||
+      "Captcha API failed";
+
+    throw new Error(errDesc);
+  }
+};

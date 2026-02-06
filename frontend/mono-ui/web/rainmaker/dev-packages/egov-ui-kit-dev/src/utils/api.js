@@ -233,7 +233,7 @@ export const uploadFile = async (endPoint, module, file, ulbLevel) => {
   }
 };
 
-export const loginRequest = async (username = null, password = null, refreshToken = "", grantType = "password", tenantId = "", userType) => {
+export const loginRequest = async (username = null, password = null, refreshToken = "", grantType = "password", tenantId = "", userType, captcha = "", captchaId = "") => {
   tenantId = tenantId ? tenantId : commonConfig.tenantId;
   const loginInstance = axios.create({
     baseURL: window.location.origin,
@@ -250,11 +250,20 @@ export const loginRequest = async (username = null, password = null, refreshToke
     const encryptedPassword = encryptAES(password);
     params.append("password", encryptedPassword);
   }
-  refreshToken && params.append("refresh_token", refreshToken);
-  params.append("grant_type", grantType);
-  params.append("scope", "read");
-  params.append("tenantId", tenantId);
+  if (captcha) {
+    const encryptedCaptcha = encryptAES(captcha);
+    params.append("captcha", encryptedCaptcha);
+  }
   userType && params.append("userType", userType);
+  params.append("tenantId", tenantId);
+  if (captchaId) {
+    // Reverting encryption for captchaId as it is likely a server-provided token
+    const encryptedCaptchaId = encryptAES(captchaId);
+    params.append("captchaId", encryptedCaptchaId);
+  }
+  params.append("scope", "read");
+  params.append("grant_type", grantType);
+  refreshToken && params.append("refresh_token", refreshToken);
 
   try {
     const response = await loginInstance.post("/user/oauth/token", params);
@@ -380,7 +389,7 @@ export const commonApiPost = (
           // _err=response.response.data.error.message?"a) "+extractErrorMsg(response.response.data.error, "message", "description")+" : ":"";
           // let fields=response.response.data.error.fields;
           if (response.response.data.Errors.length == 1) {
-            if(response.response.data.Errors[0].message.includes("InvalidAccessTokenException")){
+            if (response.response.data.Errors[0].message.includes("InvalidAccessTokenException")) {
               throw new Error(getLocaleLabels("InvalidAccessTokenException"));
             }
             _err += getLocaleLabels(response.response.data.Errors[0].message) + ".";
@@ -480,7 +489,7 @@ export const downloadPdfFile = async (
     responseType: "arraybuffer",
     headers: {
       "Content-Type": "application/json",
-      Accept: commonConfig.singleInstance ?"application/pdf,application/json":"application/pdf",
+      Accept: commonConfig.singleInstance ? "application/pdf,application/json" : "application/pdf",
     },
   });
 
