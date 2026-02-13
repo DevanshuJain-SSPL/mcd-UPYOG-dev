@@ -1,14 +1,4 @@
-import {
-  BackButton,
-  Dropdown,
-  FormComposer,
-  Loader,
-  Toast,
-  TextInput,
-  RefreshIcon,
-  Close,
-  ViewsIcon,
-} from "@nudmcdgnpm/digit-ui-react-components";
+import { BackButton, Dropdown, FormComposer, Loader, Toast, TextInput, RefreshIcon, Close, ViewsIcon } from "@nudmcdgnpm/digit-ui-react-components";
 import PropTypes from "prop-types";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useHistory } from "react-router-dom";
@@ -41,9 +31,9 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
   const [user, setUser] = useState(null);
   const [showToast, setShowToast] = useState(null);
   const [disable, setDisable] = useState(false);
-  const [captchaText, setCaptchaText] = useState("");
+  const [captchaImage, setCaptchaImage] = useState("");
   const [captchaValue, setCaptchaValue] = useState("");
-  const [captchaId, setCaptchaId] = useState(""); // ✅ NEW
+  const [captchaId, setCaptchaId] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
@@ -56,15 +46,36 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
 
   const fetchCaptcha = async () => {
     try {
-      const response = await Digit.UserService.userCaptchaSearch();
-      if (!isMountedRef.current) return;
+      const timestamp = Date.now();
 
-      setCaptchaText(response?.captcha || "");
-      const encryptedId = response?.captchaId ? encryptAES(response.captchaId) : "";
-      setCaptchaId(encryptedId);
+      
+
+      const response = await fetch(`/user/api/captcha/image?timestamp=${timestamp}`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      // ✅ Read Captcha-Id from response headers
+      const captchaIdFromHeader = response.headers.get("Captcha-Id");
+
+      if (!captchaIdFromHeader) {
+        console.error("Captcha-Id missing in response headers");
+        return;
+      }
+
+      // Optional encryption
+      const encryptedCaptchaId = encryptAES(captchaIdFromHeader);
+
+      // Convert image to blob for display
+      const blob = await response.blob();
+      const imageUrl = URL.createObjectURL(blob);
+
+      setCaptchaImage(imageUrl);
+      setCaptchaId(encryptedCaptchaId);
       setCaptchaValue("");
-    } catch (err) {
-      console.error("Captcha fetch failed", err);
+
+    } catch (error) {
+      console.error("Failed to fetch captcha", error);
     }
   };
 
@@ -122,7 +133,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
       userType: "EMPLOYEE",
       tenantId: data.city.code,
       captcha: encryptedCaptcha,
-      captchaId: captchaId, // ✅ NEW
+      captchaId: captchaId,
     };
 
     delete requestData.city;
@@ -154,12 +165,14 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
       if (!isMountedRef.current) return;
 
       const errorCode = err?.response?.data?.Errors?.[0]?.code;
+      const errorDescription = err?.response?.data?.error_description;
 
-      setShowToast(err?.response?.data?.error_description || "Invalid login credentials!");
-      setTimeout(closeToast, 5000);
+      setShowToast(errorDescription || "Invalid login credentials!");
 
-      if (errorCode === "CAPTCHA_INVALID") {
-        fetchCaptcha();
+      // ✅ If captcha is wrong → refetch captcha
+      if (errorCode === "CAPTCHA_INVALID" || errorDescription?.toLowerCase().includes("captcha")) {
+        fetchCaptcha(); // 🔁 refresh captcha
+        setCaptchaValue(""); // clear input
       }
 
       setTimeout(() => {
@@ -172,6 +185,9 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
 
   const closeToast = () => {
     setShowToast(null);
+  };
+  const isFormValid = (formData) => {
+    return formData?.username && formData?.password && captchaValue && captchaImage;
   };
 
   const onForgotPassword = () => {
@@ -192,13 +208,6 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
           },
           isMandatory: true,
         },
-        // {
-        //   label: t(password.label),
-        //   type: password.type,
-        //   populators: { name: password.name },
-        //   isMandatory: true,
-        // },
-
         {
           label: t(password.label),
           type: "custom",
@@ -250,19 +259,6 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
           populators: {
             name: "captcha",
             component: ({ value, onChange }) => {
-              const blockEvent = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                return false;
-              };
-
-              const blockKeyCopy = (e) => {
-                if ((e.ctrlKey || e.metaKey) && ["c", "x", "v", "a"].includes(e.key.toLowerCase())) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }
-              };
-
               return (
                 <div style={{ marginTop: "12px" }}>
                   <div
@@ -272,16 +268,8 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
                       alignItems: "center",
                     }}
                   >
+                    {/* Captcha Image Display */}
                     <div
-                      onCopy={blockEvent}
-                      onCut={blockEvent}
-                      onPaste={blockEvent}
-                      onContextMenu={blockEvent}
-                      onMouseDown={blockEvent}
-                      onDragStart={blockEvent}
-                      onSelectStart={blockEvent}
-                      onKeyDown={blockKeyCopy}
-                      tabIndex={0}
                       style={{
                         height: "45px",
                         minWidth: "120px",
@@ -291,13 +279,26 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "20px",
-                        fontWeight: "700",
-                        letterSpacing: "4px",
-                        cursor: "default",
+                        overflow: "hidden",
                       }}
                     >
-                      {captchaText}
+                      {captchaImage ? (
+                        <img
+                          src={captchaImage}
+                          alt="Captcha"
+                          style={{
+                            height: "100%",
+                            width: "100%",
+                            objectFit: "contain",
+                          }}
+                          onError={(e) => {
+                            console.error("Captcha image failed to load");
+                            e.target.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <span style={{ fontSize: "12px", color: "#666" }}>Loading...</span>
+                      )}
                     </div>
 
                     <button
@@ -309,6 +310,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
                         border: "none",
                         marginLeft: "12px",
                         outline: "none",
+                        cursor: "pointer",
                       }}
                     >
                       <RefreshIcon />
@@ -340,7 +342,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
                 className="login-city-dd"
                 optionKey="i18nKey"
                 style={{ display: "none" }}
-                selected={props.value || defaultCity} // ✅ ensures pre-selected
+                selected={props.value || defaultCity}
                 select={(d) => props.onChange(d)}
                 t={t}
                 {...customProps}
@@ -362,12 +364,12 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
 
       <FormComposer
         onSubmit={onLogin}
-        isDisabled={isDisabled || disable || !captchaText || captchaValue !== captchaText}
+        isDisabled={isDisabled || disable || !captchaImage}
         noBoxShadow
         inline
         submitInForm
         config={config}
-        defaultValues={{ city: defaultCity }} // ✅ pre-fill city for form
+        defaultValues={{ city: defaultCity }}
         label={propsConfig.texts.submitButtonLabel}
         secondaryActionLabel={propsConfig.texts.secondaryButtonLabel}
         onSecondayActionClick={onForgotPassword}
@@ -376,9 +378,7 @@ const Login = ({ config: propsConfig, t, isDisabled }) => {
         cardStyle={{ margin: "auto", minWidth: "408px" }}
         className="loginFormStyleEmployee"
         buttonStyle={{ maxWidth: "100%", width: "100%", backgroundColor: "#5a1166" }}
-      >
-        {/* <Header /> */}
-      </FormComposer>
+      ></FormComposer>
       {showToast && <Toast error={true} label={t(showToast)} onClose={closeToast} />}
       <div style={{ width: "100%", position: "fixed", bottom: 0, backgroundColor: "white", textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", color: "black" }}>
